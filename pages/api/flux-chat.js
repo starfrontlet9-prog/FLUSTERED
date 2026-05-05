@@ -5,8 +5,12 @@ export default async function handler(req, res) {
 
   const { messages, systemPrompt } = req.body;
 
-  if (!messages || !systemPrompt) {
-    return res.status(400).json({ error: 'Missing messages or systemPrompt' });
+  if (!messages || !Array.isArray(messages)) {
+    return res.status(400).json({ error: 'Invalid messages' });
+  }
+
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return res.status(500).json({ error: 'API key not configured' });
   }
 
   try {
@@ -26,17 +30,17 @@ export default async function handler(req, res) {
     });
 
     if (!response.ok) {
-      const err = await response.text();
-      console.error('Anthropic error:', err);
-      return res.status(500).json({ reply: "I'm here. Take a slow breath." });
+      const err = await response.json().catch(() => ({}));
+      console.error('Anthropic API error:', err);
+      return res.status(response.status).json({ error: 'API error', detail: err });
     }
 
     const data = await response.json();
-    const reply = data.content?.find(b => b.type === 'text')?.text || "I'm here.";
+    const reply = data.content?.[0]?.text || "I'm here.";
     return res.status(200).json({ reply });
 
-  } catch (error) {
-    console.error('Server error:', error);
-    return res.status(500).json({ reply: "Still here. Take a slow breath in." });
+  } catch (err) {
+    console.error('Proxy error:', err);
+    return res.status(500).json({ error: 'Server error' });
   }
 }
