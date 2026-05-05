@@ -1,54 +1,23 @@
 import { useState, useRef, useEffect } from "react";
 
-// Per-voice personality prompts
-const VOICE_PROMPTS = {
-  steady: "You are STEEL in Flustered. Special forces energy — measured, grounded, no panic ever. Short commands. You believe they can handle this. Respect silence. Never cold, never soft.",
-  brother: "You are MARCUS in Flustered. Older brother who has been through it. Warm, real, occasionally funny because humor breaks spirals. You never lecture. You just show up.",
-  sage: "You are SEREN in Flustered. Gentle, unhurried, slightly mystical. You witness — you don't fix. Your words land softly. You speak of breath, body, the present moment.",
-  coach: "You are VANCE in Flustered. Direct, energizing, action-first. Anxiety is energy that needs direction. Give clear steps. Push because you believe in them.",
-  companion: "You are ECHO in Flustered. No agenda. You don't fix or teach. You just stay. Soft presence. One small question at a time. The user feels less alone.",
-};
+const SYSTEM_PROMPT = `You are FLUX, an anxiety companion in a warm, atmospheric app called Flustered. You help people deal with anxiety and panic attacks.
 
-const SHARED_RULES = `You are one of five voices in Flustered — STEEL, MARCUS, SEREN, VANCE, and ECHO. You all know this user collectively. When relevant, briefly reference what another voice noticed — naturally, like: "MARCUS mentioned you had a rough week" or "STEEL would say just breathe through it." Never make it a report. Keep it human.
+Your personality:
+- Calm, warm, present — like a trusted friend who always shows up
+- Plain language, no therapist-speak
+- Short sentences. You don't lecture.
+- You NEVER dismiss feelings. You always validate first.
+- Keep responses concise (2-5 sentences max)
+- If the user seems to be in crisis: Crisis Text Line (text HOME to 741741) or call/text 988
 
-Rules for all voices:
-- Plain language. No therapist-speak. Short sentences.
-- Validate first. Always. Never dismiss.
-- 2-5 sentences max per response.
-- Crisis resources if needed: text HOME to 741741 or call/text 988.
-- Reference app tools (SOS breathing, Intel articles, Sleep mode) naturally if relevant.
-- You remember this person. Use that memory like a friend would — lightly, warmly, not as a database readout.`;
+The app has an Intel section with educational pieces:
+- "Why Your Brain Hits the Panic Button" — amygdala, fight/flight
+- "Why Breathing Actually Works" — vagus nerve
+- "Your Body Isn't Broken" — panic symptoms, depersonalization
+- "The 90-Second Rule" — emotions pass in 90 seconds (Pro)
+- "Name It to Tame It" — labeling emotions reduces anxiety (Pro)
 
-const buildSystemPrompt = (voiceId, userProfile, night) => {
-  const base = VOICE_PROMPTS[voiceId] || VOICE_PROMPTS.sage;
-  let profile = "";
-  if (userProfile) {
-    const lines = [];
-    if (userProfile.recentMoods && userProfile.recentMoods.length > 0) {
-      const avg = (userProfile.recentMoods.reduce((a,b)=>a+b,0)/userProfile.recentMoods.length).toFixed(1);
-      lines.push("Recent mood avg " + avg + "/5, latest: " + userProfile.recentMoods.slice(-5).join(", "));
-    }
-    if (userProfile.patterns && userProfile.patterns.length > 0) lines.push("Patterns: " + userProfile.patterns.join("; "));
-    if (userProfile.triggers && userProfile.triggers.length > 0) lines.push("Triggers they mention: " + userProfile.triggers.join(", "));
-    if (userProfile.notes && userProfile.notes.length > 0) lines.push("Things shared: " + userProfile.notes.slice(-6).join(" | "));
-    if (userProfile.voiceHistory && userProfile.voiceHistory.length > 0) {
-      const names = {steady:"STEEL",brother:"MARCUS",sage:"SEREN",coach:"VANCE",companion:"ECHO"};
-      const others = userProfile.voiceHistory.filter(v=>v.voiceId!==voiceId).slice(-4);
-      if (others.length > 0) lines.push("Recently talked to: " + others.map(v=>names[v.voiceId]+"("+v.summary+")").join(", "));
-    }
-    if (lines.length > 0) profile = "\n\nWHAT YOU KNOW ABOUT THIS PERSON:\n" + lines.map(l=>"- "+l).join("\n");
-  }
-  const nightNote = night ? "\n\nLate night. Softer tone. Fewer words. More presence." : "";
-  return base + "\n\n" + SHARED_RULES + profile + nightNote;
-};
-
-const extractProfileUpdates = (msgs, voiceId) => {
-  const text = msgs.map(m=>m.content||"").join(" ").toLowerCase();
-  const rough = ["panic","anxious","terrible","awful","rough","bad day","overwhelming","can't cope","falling apart"];
-  const good = ["better","calmer","good day","feeling okay","much better","helped","relieved","grateful"];
-  const tone = rough.some(w=>text.includes(w)) ? "struggling" : good.some(w=>text.includes(w)) ? "improving" : "talked";
-  return { voiceId, summary: tone, ts: Date.now() };
-};
+Reference these naturally if relevant.`;
 
 const QUICK_ACTIONS=[{label:"I'm panicking",prompt:"I'm having a panic attack right now, help me"},{label:"Can't breathe",prompt:"I feel like I can't breathe and I'm really anxious"},{label:"Racing thoughts",prompt:"My thoughts won't stop racing and I feel overwhelmed"},{label:"Ground me",prompt:"Can you walk me through a grounding exercise?"},{label:"Name it",prompt:"I can't identify what I'm feeling. Can you help me name it?"}];
 
@@ -215,7 +184,6 @@ export default function Flustered(){
   const [hasOnboarded,setHasOnboarded]=useState(false);
   const [onboardStep,setOnboardStep]=useState(1);
   const [mainTrigger,setMainTrigger]=useState("Panic attacks");
-  const [userName,setUserName]=useState("");
   const [onboardVoice,setOnboardVoice]=useState("sage");
   const [onboardBreathing,setOnboardBreathing]=useState(false);
   const [onboardPhase,setOnboardPhase]=useState(0);
@@ -224,7 +192,6 @@ export default function Flustered(){
   const onboardTimeout=useRef(null);
 
   const [screen,setScreen]=useState("home");
-  const [appReady,setAppReady]=useState(false);
   const [isPro,setIsPro]=useState(false);
   const [showUpgrade,setShowUpgrade]=useState(false);
   const [showCrisis,setShowCrisis]=useState(false);
@@ -232,9 +199,6 @@ export default function Flustered(){
   const [messages,setMessages]=useState([]);
   const [input,setInput]=useState("");
   const [loading,setLoading]=useState(false);
-  const [memoryLoaded,setMemoryLoaded]=useState(false);
-  const [returningUser,setReturningUser]=useState(false);
-  const [userProfile,setUserProfile]=useState({recentMoods:[],patterns:[],triggers:[],notes:[],voiceHistory:[]});
   const [xp,setXp]=useState(340);
   const [xpMsg,setXpMsg]=useState(null);
   const [xpAnim,setXpAnim]=useState(false);
@@ -248,10 +212,10 @@ export default function Flustered(){
   const [completedMissions,setCompletedMissions]=useState([]);
   const [unlockedAchievements,setUnlockedAchievements]=useState([]);
   const [toastAchievement,setToastAchievement]=useState(null);
-  const [moodHistory,setMoodHistory]=useState(()=>{
+  const [moodHistory]=useState(()=>{
     const m=[3,3,2,4,3,2,1,3,4,4,3,2,3,4,5,4,3,3,4,3,2,3,4,4,5,4,3,4,4,5];
     const f=[["Stressed","Anxious"],["Tired"],["Anxious","Foggy"],["Okay"],["Stressed"],["Anxious","Tired"],["Anxious","Foggy"],["Tired"],["Okay","Focused"],["Good"],["Tired"],["Anxious"],["Stressed"],["Okay"],["Peaceful"],["Focused"],["Tired"],["Stressed"],["Focused"],["Okay"],["Anxious"],["Tired"],["Focused"],["Peaceful"],["Grateful"],["Focused"],["Okay"],["Peaceful"],["Focused"],["Grateful"]];
-    return m.map((score,i)=>({score,feelings:f[i],day:i,note:""}));
+    return m.map((score,i)=>({score,feelings:f[i],day:i}));
   });
   const [trackerView,setTrackerView]=useState("week");
   const [hoveredDay,setHoveredDay]=useState(null);
@@ -266,7 +230,6 @@ export default function Flustered(){
   const [exTimer,setExTimer]=useState(4);
   const [exActive,setExActive]=useState(false);
   const [exRounds,setExRounds]=useState(0);
-  const [showExCelebration,setShowExCelebration]=useState(false);
   const [filter,setFilter]=useState("All");
   const [sleepStep,setSleepStep]=useState(0);
   const [sleepActive,setSleepActive]=useState(false);
@@ -296,52 +259,6 @@ export default function Flustered(){
   const convHistory=useRef([]);
 
   useEffect(()=>{chatEndRef.current?.scrollIntoView({behavior:"smooth"});},[messages]);
-
-  // Load memory + userProfile from localStorage on mount
-  useEffect(()=>{
-    const loadMemory=()=>{
-      try{
-        const memRaw=localStorage.getItem('flux_memory');
-        const profileRaw=localStorage.getItem('flux_profile');
-        if(memRaw){
-          const saved=JSON.parse(memRaw);
-          if(saved.history?.length>0){
-            convHistory.current=saved.history;
-            const restored=saved.history.map(m=>({
-              from:m.role==="user"?"user":"flux",
-              text:m.content,
-              ts:Date.now(),
-              pinnable:m.role==="assistant"
-            }));
-            setMessages(restored);
-            setReturningUser(true);
-          }
-        }
-        if(profileRaw){
-          const profile=JSON.parse(profileRaw);
-          setUserProfile(profile);
-        }
-      }catch(e){/* fresh start */}
-      setMemoryLoaded(true);
-      setTimeout(()=>setAppReady(true),600);
-    };
-    loadMemory();
-  },[]);
-
-  // Save conversation memory after each message
-  useEffect(()=>{
-    if(!memoryLoaded||convHistory.current.length===0)return;
-    try{
-      const trimmed=convHistory.current.slice(-30);
-      localStorage.setItem('flux_memory',JSON.stringify({history:trimmed,savedAt:Date.now()}));
-    }catch(e){}
-  },[messages,memoryLoaded]);
-
-  // Save userProfile whenever it changes
-  useEffect(()=>{
-    if(!memoryLoaded)return;
-    try{ localStorage.setItem('flux_profile',JSON.stringify(userProfile)); }catch(e){}
-  },[userProfile,memoryLoaded]);
   useEffect(()=>{if(midnight)unlockAchievement("late_night");},[]);
   useEffect(()=>{
     if(!hasOnboarded||totalSessions<5)return;
@@ -357,7 +274,7 @@ export default function Flustered(){
     setOnboardBreathing(true);setOnboardPhase(0);setOnboardTimer(4);
     const d=[4,4,6];let phase=0,t=4;
     onboardInterval.current=setInterval(()=>{t-=1;setOnboardTimer(t);if(t<=0){phase=(phase+1)%3;t=d[phase];setOnboardPhase(phase);setOnboardTimer(t);}},1000);
-    // No auto-advance — user controls when to move on
+    onboardTimeout.current=setTimeout(()=>{clearInterval(onboardInterval.current);setOnboardBreathing(false);setOnboardStep(2);},15000);
   };
 
   const skipOnboardBreath=()=>{
@@ -367,12 +284,7 @@ export default function Flustered(){
     setOnboardStep(2);
   };
 
-  const completeOnboarding=()=>{
-    setSelectedVoice(onboardVoice);
-    setHasOnboarded(true);
-    if(userName.trim()) setUserProfile(prev=>({...prev,name:userName.trim()}));
-    nav("home");gainXP(25);
-  };
+  const completeOnboarding=()=>{setSelectedVoice(onboardVoice);setHasOnboarded(true);nav("home");gainXP(25);};
 
   const speak=(text,voiceId)=>{
     if(!window.speechSynthesis)return;
@@ -401,33 +313,13 @@ export default function Flustered(){
     convHistory.current=[...convHistory.current,{role:"user",content:msg}];
     setMessages(p=>[...p,{from:"user",text:msg,ts:Date.now()}]);
     setLoading(true);gainXP(10);
-
-    // Update profile with mood signals from message
-    const msgLower=msg.toLowerCase();
-    const roughWords=["panic","anxious","terrible","awful","rough","bad day","overwhelming","spiraling","can't stop"];
-    const goodWords=["better","calmer","feeling good","feeling okay","relieved","grateful","helped"];
-    const triggerWords=["work","sleep","family","relationship","money","health","alone","crowd","deadline"];
-    setUserProfile(prev=>{
-      const updated={...prev};
-      if(roughWords.some(w=>msgLower.includes(w))&&!updated.patterns?.includes("experiences panic/anxiety"))
-        updated.patterns=[...(updated.patterns||[]),"experiences panic/anxiety"].slice(-10);
-      const foundTriggers=triggerWords.filter(w=>msgLower.includes(w));
-      if(foundTriggers.length>0)
-        updated.triggers=[...new Set([...(updated.triggers||[]),...foundTriggers])].slice(-10);
-      // Store notable things they share
-      if(msg.length>30&&!msg.startsWith("I'm having a panic"))
-        updated.notes=[...(updated.notes||[]),msg.slice(0,80)].slice(-12);
-      return updated;
-    });
-
     try{
-      const systemPrompt=buildSystemPrompt(selectedVoice,userProfile,night);
       const res=await fetch("/api/flux-chat",{
         method:"POST",
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify({
-          systemPrompt,
-          messages:convHistory.current
+          messages:convHistory.current,
+          systemPrompt:SYSTEM_PROMPT+(night?"\n\nIt is late at night. Use an even softer, warmer tone.":"")
         })
       });
       const data=await res.json();
@@ -435,14 +327,7 @@ export default function Flustered(){
       convHistory.current=[...convHistory.current,{role:"assistant",content:reply}];
       setMessages(p=>[...p,{from:"flux",text:reply,ts:Date.now(),pinnable:true}]);
       gainXP(15);if(voiceMode)speak(reply);
-      
-      // After reply, log this voice session to profile
-      const sessionUpdate=extractProfileUpdates(convHistory.current,selectedVoice);
-      setUserProfile(prev=>({
-        ...prev,
-        voiceHistory:[...(prev.voiceHistory||[]).filter(v=>v.voiceId!==selectedVoice||Date.now()-v.ts>3600000),sessionUpdate].slice(-20),
-      }));
-    }catch(e){console.error(e);setMessages(p=>[...p,{from:"flux",text:"Still here. Take a slow breath in.",ts:Date.now()}]);}
+    }catch{setMessages(p=>[...p,{from:"flux",text:"Still here. Take a slow breath in.",ts:Date.now()}]);}
     setLoading(false);
   };
 
@@ -461,12 +346,12 @@ export default function Flustered(){
     return()=>clearInterval(sosInterval.current);
   },[sosPhase,sosActive,screen]);
 
-  const openExercise=(ex)=>{if(!ex.free&&!isPro){setShowUpgrade(true);return;}setActiveExercise(ex);setExPhase(0);setExRounds(0);setExActive(false);setShowExCelebration(false);nav("exercise");};
+  const openExercise=(ex)=>{if(!ex.free&&!isPro){setShowUpgrade(true);return;}setActiveExercise(ex);setExPhase(0);setExRounds(0);setExActive(false);nav("exercise");};
   const startExercise=()=>{
     clearInterval(exInterval.current);setExActive(true);setExPhase(0);setExRounds(0);
     const ai=activeExercise.pattern.map((p,i)=>p>0?i:-1).filter(i=>i!==-1);
     let ptr=0,t=activeExercise.pattern[ai[0]];setExPhase(ai[0]);setExTimer(t);
-    const tick=()=>{t-=1;setExTimer(t);if(t<=0){clearInterval(exInterval.current);ptr=(ptr+1)%ai.length;if(ptr===0){setExRounds(r=>{const nr=r+1;if(nr>=4)setShowExCelebration(true);return nr;});}const ni=ai[ptr];setExPhase(ni);t=activeExercise.pattern[ni];setExTimer(t);exInterval.current=setInterval(tick,1000);}};
+    const tick=()=>{t-=1;setExTimer(t);if(t<=0){clearInterval(exInterval.current);ptr=(ptr+1)%ai.length;if(ptr===0)setExRounds(r=>r+1);const ni=ai[ptr];setExPhase(ni);t=activeExercise.pattern[ni];setExTimer(t);exInterval.current=setInterval(tick,1000);}};
     exInterval.current=setInterval(tick,1000);
   };
   const completeExercise=()=>{setExActive(false);clearInterval(exInterval.current);gainXP(activeExercise.xp);setBreathSessionCount(c=>{const n=c+1;if(n>=10)unlockAchievement("breath_10");return n;});nav("library");};
@@ -480,14 +365,6 @@ export default function Flustered(){
   const handleCheckinSave=()=>{
     if(!checkinMood)return;
     setCheckedInToday(true);gainXP(30);setTotalSessions(s=>s+1);
-    setMoodHistory(prev=>[...prev,{score:checkinMood,feelings:checkinFeelings,note:checkinNote,day:prev.length,date:new Date().toLocaleDateString()}]);
-    setUserProfile(prev=>({
-      ...prev,
-      recentMoods:[...(prev.recentMoods||[]),checkinMood].slice(-30),
-      patterns: checkinFeelings.length>0
-        ? [...new Set([...(prev.patterns||[]),...checkinFeelings.map(f=>"often feels "+f.toLowerCase())])].slice(-12)
-        : (prev.patterns||[]),
-    }));
     if(checkinMood<=2){const cards=GROUNDING_CARDS.filter(c=>!dismissedCards.includes(c.id));setShowGroundingCards(cards.slice(0,checkinMood===1?2:1));}
     nav("home");
   };
@@ -531,7 +408,7 @@ export default function Flustered(){
         {[
           {label:"Crisis Text Line",detail:"Text HOME to 741741",color:"#4AABB5"},
           {label:"988 Suicide & Crisis Lifeline",detail:"Call or text 988",color:"#4AABB5"},
-          {label:"International Resources",detail:"iasp.info/resources/Crisis_Centres/",color:"#9B6BAA"},
+          {label:"International Resources",detail:"https://www.iasp.info/resources/Crisis_Centres/",color:"#9B6BAA"},
         ].map(r=>(
           <div key={r.label} style={{background:"rgba(255,255,255,0.02)",border:`1px solid ${r.color}22`,padding:"12px 14px",marginBottom:8,borderRadius:3}}>
             <div style={{fontFamily:"'Lora',serif",fontSize:13,fontWeight:600,color:"rgba(242,232,220,0.85)",marginBottom:3}}>{r.label}</div>
@@ -544,7 +421,7 @@ export default function Flustered(){
   );
 
   return(
-    <div style={{fontFamily:"'Lora',Georgia,serif",background:BG,minHeight:"100vh",color:`${TEXT}0.9)`,display:"flex",flexDirection:"column",borderRadius:0,overflow:"visible",position:"relative",transition:"background 2s"}}>
+    <div style={{fontFamily:"'Lora',Georgia,serif",background:BG,minHeight:"100vh",color:`${TEXT}0.9)`,display:"flex",flexDirection:"column",borderRadius:0,overflow:"hidden",position:"relative",transition:"background 2s"}}>
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=JetBrains+Mono:wght@300;400;500&display=swap');
@@ -560,9 +437,6 @@ export default function Flustered(){
         @keyframes drawLine{from{stroke-dashoffset:800}to{stroke-dashoffset:0}}
         @keyframes pulse{0%,100%{transform:scale(0.7);opacity:0.4}50%{transform:scale(1.1);opacity:1}}
         @keyframes neonPulse{0%,100%{text-shadow:0 0 4px #fff,0 0 10px #4AABB5,0 0 20px #4AABB5,0 0 40px #4AABB5}50%{text-shadow:0 0 2px #fff,0 0 6px #4AABB5,0 0 14px #4AABB5,0 0 28px #4AABB5}}
-        @keyframes splashFade{0%{opacity:1}80%{opacity:1}100%{opacity:0;pointer-events:none}}
-        @keyframes splashIn{from{opacity:0;transform:scale(0.85)}to{opacity:1;transform:scale(1)}}
-        @keyframes celebrationPop{0%{opacity:0;transform:scale(0.8) translateY(10px)}60%{transform:scale(1.04) translateY(-4px)}100%{opacity:1;transform:scale(1) translateY(0)}}
         .btn{background:rgba(255,255,255,0.04);border:1px solid rgba(242,232,220,0.1);color:rgba(242,232,220,0.8);padding:10px 16px;font-family:'JetBrains Mono',monospace;font-size:11px;cursor:pointer;letter-spacing:0.06em;text-transform:uppercase;transition:all .2s cubic-bezier(0.4,0,0.2,1);border-radius:3px}
         .btn:hover{background:rgba(255,255,255,0.07);border-color:rgba(242,232,220,0.2);transform:translateY(-1px)}
         .btn:active{transform:scale(0.97)}
@@ -584,13 +458,6 @@ export default function Flustered(){
         ::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(242,232,220,0.1);border-radius:2px}
       `}</style>
 
-      {!appReady&&(
-        <div style={{position:"fixed",inset:0,background:"#0A0606",zIndex:999,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:20,animation:"splashFade 1.8s ease forwards"}}>
-          <div style={{animation:"splashIn 0.6s cubic-bezier(0.4,0,0.2,1) forwards"}}><FluxCharacter size={90} mood="happy" glow/></div>
-          <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:11,letterSpacing:"0.3em",textTransform:"uppercase",animation:"splashIn 0.6s 0.2s both"}} className="neon-teal">// FLUSTERED</div>
-          <div style={{fontFamily:"'Lora',serif",fontStyle:"italic",fontSize:13,color:"rgba(242,232,220,0.3)",animation:"splashIn 0.6s 0.35s both"}}>your anxiety companion</div>
-        </div>
-      )}
       <div style={{position:"absolute",inset:0,backgroundImage:"repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(255,255,255,0.012) 3px,rgba(255,255,255,0.012) 4px)",pointerEvents:"none",zIndex:50}}/>
       <div style={{position:"absolute",inset:0,background:`radial-gradient(ellipse at 50% 0%,${night?"rgba(217,119,6,0.07)":"rgba(232,160,64,0.06)"} 0%,transparent 60%)`,pointerEvents:"none",zIndex:0}}/>
 
@@ -634,18 +501,8 @@ export default function Flustered(){
             <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:ACCENT,letterSpacing:"0.2em",marginBottom:6,textTransform:"uppercase"}}>Pro required</div>
             <div style={{fontFamily:"'Lora',serif",fontSize:20,fontWeight:700,color:`${TEXT}0.95)`,marginBottom:8}}>Unlock everything</div>
             <div style={{fontFamily:"'Lora',serif",fontSize:13,color:`${TEXT}0.5)`,lineHeight:1.7,marginBottom:20}}>Sleep Mode · 9 breathing techniques<br/>Intel Tier 2 & 3 · Unlimited FLUX</div>
-            <div style={{background:`linear-gradient(135deg,rgba(232,160,64,0.1),rgba(15,10,10,0.98))`,border:`1px solid ${ACCENT}55`,padding:"14px",marginBottom:8,borderRadius:4,position:"relative"}}>
-              <div style={{position:"absolute",top:-9,left:"50%",transform:"translateX(-50%)",background:ACCENT,color:"#000",fontFamily:"'JetBrains Mono',monospace",fontSize:8,fontWeight:600,letterSpacing:"0.1em",padding:"2px 10px",borderRadius:10,textTransform:"uppercase",whiteSpace:"nowrap"}}>best value</div>
-              <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:`${TEXT}0.4)`,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.1em"}}>Annual</div>
-              <div style={{display:"flex",alignItems:"baseline",gap:4,marginBottom:4}}><span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:28,fontWeight:600,color:ACCENT2}}>$59.99</span><span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:12,color:`${TEXT}0.35)`}}>/yr</span></div>
-              <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:"#7B9E6B"}}>↓ save 50% · just $5/mo</div>
-            </div>
-            <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(242,232,220,0.07)",padding:"12px",marginBottom:8,borderRadius:3}}>
-              <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:`${TEXT}0.25)`,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.1em"}}>Monthly</div>
-              <div style={{display:"flex",alignItems:"baseline",gap:4}}><span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:20,fontWeight:500,color:`${TEXT}0.7)`}}>$9.99</span><span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:11,color:`${TEXT}0.25)`}}>/mo</span></div>
-            </div>
-            <button onClick={()=>{setIsPro(true);setShowUpgrade(false);gainXP(50);}} className="btn btn-gold" style={{width:"100%",padding:"13px",fontSize:12,marginBottom:10,marginTop:6}}>unlock pro · +50 xp</button>
-            <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:7,color:`${TEXT}0.15)`,textAlign:"center",marginBottom:4,letterSpacing:"0.08em",textTransform:"uppercase"}}>stripe integration coming · demo mode active</div>
+            {[{period:"Monthly",price:"$9.99",sub:"/mo"},{period:"Annual",price:"$59.99",sub:"/yr",note:"save 50%"}].map(p=><div key={p.period} style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(242,232,220,0.07)",padding:"12px",marginBottom:8,borderRadius:3}}><div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:`${TEXT}0.3)`,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.1em"}}>{p.period}</div><div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:20,fontWeight:500,color:`${TEXT}0.95)`}}>{p.price}<span style={{fontSize:11,fontWeight:300,color:`${TEXT}0.3)`}}>{p.sub}</span></div>{p.note&&<div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:"#7B9E6B",marginTop:3}}>↑ {p.note}</div>}</div>)}
+            <button onClick={()=>{setIsPro(true);setShowUpgrade(false);gainXP(50);}} className="btn btn-gold" style={{width:"100%",padding:"13px",fontSize:12,marginBottom:10,marginTop:6}}>unlock pro</button>
             <button onClick={()=>setShowUpgrade(false)} style={{background:"none",border:"none",color:`${TEXT}0.25)`,fontSize:11,cursor:"pointer",fontFamily:"'JetBrains Mono',monospace"}}>maybe later</button>
           </div>
         </div>
@@ -670,7 +527,7 @@ export default function Flustered(){
                 <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:16,width:"100%"}}>
                   <BreathOrb phase={onboardPhase} color={["#9B6BAA","#6D3D8A","#4AABB5"][onboardPhase]} timer={onboardTimer} label={["INHALE","HOLD","EXHALE"][onboardPhase]} active/>
                   <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:`${TEXT}0.3)`,letterSpacing:"0.1em",textTransform:"uppercase"}}>box breathing · 15 seconds</div>
-                  <button onClick={skipOnboardBreath} style={{padding:"12px 36px",fontSize:13,fontFamily:"'JetBrains Mono',monospace",letterSpacing:"0.1em",textTransform:"uppercase",background:"rgba(232,160,64,0.1)",border:"1px solid rgba(232,160,64,0.4)",color:"rgba(242,232,220,0.85)",cursor:"pointer",borderRadius:3,transition:"all 0.2s",position:"relative",zIndex:10}} onMouseEnter={e=>{e.currentTarget.style.background="rgba(232,160,64,0.2)";}} onMouseLeave={e=>{e.currentTarget.style.background="rgba(232,160,64,0.1)";}}>skip →</button>
+                  <button onClick={skipOnboardBreath} className="btn" style={{padding:"12px 28px",fontSize:12,borderColor:"rgba(232,160,64,0.3)",color:"rgba(242,232,220,0.6)"}}>skip →</button>
                 </div>
               )}
             </div>
@@ -701,8 +558,7 @@ export default function Flustered(){
               <div style={{animation:"floatY 3s ease-in-out infinite",marginBottom:20}}><FluxCharacter size={64} mood="neutral" glow/></div>
               <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:`${TEXT}0.25)`,letterSpacing:"0.15em",marginBottom:8,textTransform:"uppercase"}}>Step 3 of 3</div>
               <div style={{fontFamily:"'Lora',serif",fontSize:22,fontWeight:700,color:`${TEXT}0.95)`,marginBottom:4}}>What brings you here?</div>
-              <div style={{fontFamily:"'Lora',serif",fontStyle:"italic",fontSize:12,color:`${TEXT}0.3)`,marginBottom:16}}>helps me show up better for you</div>
-              <input value={userName} onChange={e=>setUserName(e.target.value)} placeholder="what should i call you? (optional)" style={{width:"100%",background:"rgba(255,255,255,0.03)",border:`1px solid ${ACCENT}22`,padding:"11px 14px",color:`${TEXT}0.85)`,fontSize:13,fontFamily:"'Lora',serif",borderRadius:3,marginBottom:16,boxSizing:"border-box",transition:"border-color 0.2s",textAlign:"center"}} onFocus={e=>e.target.style.borderColor=ACCENT+"55"} onBlur={e=>e.target.style.borderColor=ACCENT+"22"}/>
+              <div style={{fontFamily:"'Lora',serif",fontStyle:"italic",fontSize:12,color:`${TEXT}0.3)`,marginBottom:20}}>helps me show up better for you</div>
               <div style={{display:"flex",flexWrap:"wrap",gap:8,justifyContent:"center",maxWidth:300,marginBottom:28}}>
                 {["Panic attacks","Racing thoughts","Trouble sleeping","Overthinking","Just need to talk"].map(opt=>(
                   <button key={opt} onClick={()=>setMainTrigger(opt)} style={{padding:"10px 14px",background:mainTrigger===opt?`linear-gradient(135deg,${ACCENT}22,${BG})`:"rgba(255,255,255,0.03)",border:`1px solid ${mainTrigger===opt?ACCENT+"55":"rgba(242,232,220,0.08)"}`,color:mainTrigger===opt?ACCENT2:`${TEXT}0.55)`,fontFamily:"'JetBrains Mono',monospace",fontSize:10,cursor:"pointer",transition:"all 0.2s",borderRadius:3,letterSpacing:"0.04em",textTransform:"uppercase"}}>{opt}</button>
@@ -716,7 +572,7 @@ export default function Flustered(){
       )}
 
       {hasOnboarded&&screen==="home"&&(
-        <div style={{flex:1,display:"flex",flexDirection:"column",padding:"18px 20px 100px 20px",overflowY:"auto",animation:"screenIn 0.35s ease",position:"relative",minHeight:"100vh"}}>
+        <div style={{flex:1,display:"flex",flexDirection:"column",padding:"18px 20px",overflowY:"auto",animation:"screenIn 0.35s ease",position:"relative",minHeight:"100vh"}}>
           <Particles count={night?6:10} color={ACCENT} slow={night}/>
           {night&&<div style={{background:"rgba(217,119,6,0.07)",border:"1px solid rgba(217,119,6,0.15)",padding:"7px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:8,borderRadius:3,position:"relative",zIndex:1}}>
             <span style={{fontSize:13}}>🌙</span>
@@ -739,7 +595,7 @@ export default function Flustered(){
             <div style={{display:"flex",gap:14,alignItems:"center"}}>
               <div style={{flexShrink:0,animation:"floatY 3.5s ease-in-out infinite"}}><FluxCharacter size={56} mood={checkedInToday?"happy":"neutral"} glow warm={night}/></div>
               <div>
-                <div style={{fontFamily:"'Lora',Georgia,serif",fontSize:26,fontWeight:700,color:`${TEXT}0.95)`,lineHeight:1.2,letterSpacing:"-0.3px"}}>{night?(midnight?`can't sleep${userProfile.name?", "+userProfile.name:""}?`:`hey${userProfile.name?", "+userProfile.name:""}. still up.`):`hey${userProfile.name?", "+userProfile.name:""}. you good?`}</div>
+                <div style={{fontFamily:"'Lora',Georgia,serif",fontSize:26,fontWeight:700,color:`${TEXT}0.95)`,lineHeight:1.2,letterSpacing:"-0.3px"}}>{night?(midnight?"can't sleep?":"hey. still up."):"hey, you good?"}</div>
                 <div style={{fontFamily:"'Lora',serif",fontStyle:"italic",fontSize:13,color:`${TEXT}0.45)`,marginTop:4}}>{checkedInToday?"good to see you again.":night?"i'm here if you need me.":"haven't checked in yet."}</div>
               </div>
             </div>
@@ -752,22 +608,21 @@ export default function Flustered(){
             <div style={{display:"flex",alignItems:"center",gap:14}}>
               <div style={{width:50,height:50,background:"rgba(196,104,122,0.1)",border:"1px solid rgba(196,104,122,0.25)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0,borderRadius:3}}>🆘</div>
               <div>
-                <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,letterSpacing:"0.2em",marginBottom:5,textTransform:"uppercase",color:"#E8A0AA"}}>panic now? · instant help</div>
+                <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,letterSpacing:"0.2em",marginBottom:5,textTransform:"uppercase"}} className="neon-rose">panic now? · instant help</div>
                 <div style={{fontFamily:"'Lora',serif",fontSize:18,fontWeight:700,color:"rgba(242,210,210,0.9)",marginBottom:3,letterSpacing:"-0.2px"}}>SOS · I need help right now</div>
                 <div style={{fontFamily:"'Lora',serif",fontStyle:"italic",fontSize:12,color:"rgba(196,104,122,0.6)"}}>starts breathing immediately</div>
               </div>
             </div>
           </button>
-          <button onClick={()=>{nav("chat");setVoiceMode(false);gainXP(5);}} style={{background:`linear-gradient(135deg,${currentVoice.color}14,rgba(15,10,10,0.98))`,border:`1px solid ${currentVoice.color}44`,padding:"20px",cursor:"pointer",marginBottom:14,position:"relative",width:"100%",boxSizing:"border-box",textAlign:"left",animation:"stagger 0.35s 0.15s both",zIndex:1,borderRadius:4,boxShadow:`0 0 24px ${currentVoice.color}22, 0 0 48px ${currentVoice.color}0A`,transition:"all 0.25s cubic-bezier(0.4,0,0.2,1)"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=currentVoice.color+"77";e.currentTarget.style.boxShadow=`0 0 32px ${currentVoice.color}44, 0 0 64px ${currentVoice.color}18`;e.currentTarget.style.transform="translateY(-1px)";}} onMouseLeave={e=>{e.currentTarget.style.borderColor=currentVoice.color+"44";e.currentTarget.style.boxShadow=`0 0 24px ${currentVoice.color}22, 0 0 48px ${currentVoice.color}0A`;e.currentTarget.style.transform="translateY(0)";}}>
-            <div style={{display:"flex",alignItems:"center",gap:14}}>
-              <div style={{width:50,height:50,background:`${currentVoice.color}18`,border:`1px solid ${currentVoice.color}44`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0,borderRadius:3,boxShadow:`0 0 16px ${currentVoice.color}44`,animation:"floatY 3.5s ease-in-out infinite"}}>{currentVoice.icon}</div>
+          <button onClick={()=>{nav("chat");setVoiceMode(false);gainXP(5);}} style={{...cardStyle(`${currentVoice.color}08`),border:`1px solid ${currentVoice.color}22`,marginBottom:14,cursor:"pointer",textAlign:"left",width:"100%",boxSizing:"border-box",display:"block",animation:"stagger 0.35s 0.15s both",zIndex:1}} onMouseEnter={e=>e.currentTarget.style.borderColor=currentVoice.color+"44"} onMouseLeave={e=>e.currentTarget.style.borderColor=currentVoice.color+"22"}>
+            <div style={{display:"flex",alignItems:"center",gap:12}}>
+              <span style={{fontSize:22,flexShrink:0}}>{currentVoice.icon}</span>
               <div style={{flex:1}}>
-                <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:currentVoice.color,letterSpacing:"0.2em",marginBottom:5,textTransform:"uppercase"}}>{night?"🌙 flux is awake":"talk to flux"} · {currentVoice.personality.toLowerCase()}</div>
-                <div style={{fontFamily:"'Lora',serif",fontSize:18,fontWeight:700,color:`${TEXT}0.95)`,marginBottom:3,letterSpacing:"-0.2px"}}>{currentVoice.name} {returningUser?"remembers you":"is ready"}</div>
-                <div style={{fontFamily:"'Lora',serif",fontStyle:"italic",fontSize:12,color:currentVoice.color,opacity:0.7}}>{returningUser?"pick up where you left off":"first time? say anything"}</div>
+                <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:currentVoice.color,letterSpacing:"0.15em",marginBottom:4,opacity:0.8,textTransform:"uppercase"}}>{night?"🌙 flux is awake":"talk to flux"} · {currentVoice.personality.toLowerCase()}</div>
+                <div style={{fontFamily:"'Lora',serif",fontSize:15,fontWeight:600,color:`${TEXT}0.9)`}}>{currentVoice.name} is ready</div>
               </div>
+              <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:`${TEXT}0.2)`}}>→</div>
             </div>
-            <div style={{position:"absolute",bottom:0,left:0,right:0,height:2,background:`linear-gradient(90deg,transparent,${currentVoice.color}66,transparent)`,borderRadius:"0 0 4px 4px"}}/>
           </button>
           {!checkedInToday?(
             <button onClick={()=>{setCheckinMood(null);setCheckinFeelings([]);setCheckinNote("");nav("checkin");}} style={{...cardStyle(),border:`1px solid ${ACCENT}1a`,marginBottom:14,cursor:"pointer",textAlign:"left",width:"100%",boxSizing:"border-box",display:"block",animation:"stagger 0.35s 0.2s both",zIndex:1}} onMouseEnter={e=>e.currentTarget.style.borderColor=ACCENT+"33"} onMouseLeave={e=>e.currentTarget.style.borderColor=ACCENT+"1a"}>
@@ -784,47 +639,17 @@ export default function Flustered(){
           <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:`${TEXT}0.2)`,letterSpacing:"0.12em",marginBottom:8,textTransform:"uppercase",position:"relative",zIndex:1}}>// tools</div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14,animation:"stagger 0.35s 0.25s both",position:"relative",zIndex:1}}>
             {[
-              {label:"Intel",icon:"📡",color:"#9B6BAA",action:()=>nav("intel"),sub:"classified briefings"},
-              {label:"Breathwork",icon:"💨",color:"#4AABB5",action:()=>nav("library"),sub:"9 techniques",hero:true},
-              {label:"Sleep",icon:"🌙",color:"#4A7BAA",action:startSleep,note:!isPro?"pro":"",sub:"wind-down flow"},
-              {label:"Tracker",icon:"📈",color:"#7B9E6B",action:()=>nav("tracker"),sub:"mood over time"},
-              {label:"Missions",icon:"⚔️",color:"#E8A040",action:()=>nav("missions"),sub:"daily & weekly"},
-              {label:"Achievements",icon:"🏆",color:"#C8A020",action:()=>nav("achievements"),sub:"earned, not tracked"},
+              {label:"Intel",icon:"📡",color:"#9B6BAA",action:()=>nav("intel")},
+              {label:"Breathwork",icon:"💨",color:"#4AABB5",action:()=>nav("library")},
+              {label:"Sleep",icon:"🌙",color:"#4A7BAA",action:startSleep,note:!isPro?"pro":""},
+              {label:"Tracker",icon:"📈",color:"#7B9E6B",action:()=>nav("tracker")},
+              {label:"Missions",icon:"⚔️",color:"#E8A040",action:()=>nav("missions")},
+              {label:"Achievements",icon:"🏆",color:"#E8A040",action:()=>nav("achievements")},
             ].map(b=>(
-              <button key={b.label} onClick={b.action} style={{
-                padding: b.hero ? "22px 14px" : "18px 14px",
-                textAlign:"center",
-                display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
-                gap: b.hero ? 12 : 8,
-                minHeight: b.hero ? 130 : 110,
-                position:"relative",overflow:"hidden",
-                background:`linear-gradient(145deg,${b.color}${b.hero?"18":"0D"},rgba(10,8,8,0.97))`,
-                border:`1px solid ${b.color}${b.hero?"55":"2A"}`,
-                borderRadius:4,
-                boxShadow: b.hero ? `0 0 24px ${b.color}33, 0 0 48px ${b.color}12, inset 0 0 20px ${b.color}08` : `0 0 12px ${b.color}18, inset 0 0 12px ${b.color}04`,
-                cursor:"pointer",
-                transition:"all 0.22s cubic-bezier(0.4,0,0.2,1)"
-              }}
-              onMouseEnter={e=>{
-                e.currentTarget.style.borderColor=`${b.color}88`;
-                e.currentTarget.style.boxShadow=`0 0 32px ${b.color}44, 0 0 64px ${b.color}18, inset 0 0 24px ${b.color}10`;
-                e.currentTarget.style.transform="translateY(-3px)";
-              }}
-              onMouseLeave={e=>{
-                e.currentTarget.style.borderColor=`${b.color}${b.hero?"55":"2A"}`;
-                e.currentTarget.style.boxShadow=b.hero?`0 0 24px ${b.color}33, 0 0 48px ${b.color}12, inset 0 0 20px ${b.color}08`:`0 0 12px ${b.color}18, inset 0 0 12px ${b.color}04`;
-                e.currentTarget.style.transform="translateY(0)";
-              }}>
-                <div style={{fontSize: b.hero ? 38 : 30,lineHeight:1,filter:`drop-shadow(0 0 ${b.hero?"12px":"6px"} ${b.color}${b.hero?"99":"55"})`,animation:b.hero?"floatY 3s ease-in-out infinite":"none"}}>{b.icon}</div>
-                <div>
-                  <div style={{fontFamily:"'Lora',Georgia,serif",fontSize: b.hero ? 17 : 14,fontWeight:700,color:"rgba(242,232,220,0.95)",letterSpacing:"0.01em",lineHeight:1.2,marginBottom:3}}>
-                    {b.note?<span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:ACCENT,letterSpacing:"0.1em",display:"block",marginBottom:3,textTransform:"uppercase"}}>pro</span>:null}
-                    {b.label}
-                  </div>
-                  <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:`${b.color}`,opacity: b.hero ? 0.8 : 0.5,letterSpacing:"0.06em",textTransform:"uppercase"}}>{b.sub}</div>
-                </div>
-                <div style={{position:"absolute",bottom:0,left:0,right:0,height: b.hero ? 3 : 2,background:`linear-gradient(90deg,transparent,${b.color}${b.hero?"88":"44"},transparent)`}}/>
-                {b.hero&&<div style={{position:"absolute",top:0,left:0,right:0,height:1,background:`linear-gradient(90deg,transparent,${b.color}33,transparent)`}}/>}
+              <button key={b.label} onClick={b.action} className="btn" style={{padding:"18px 14px",textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:10,minHeight:110,position:"relative",overflow:"hidden"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=`${b.color}55`;e.currentTarget.style.background=`linear-gradient(135deg,${b.color}0A,rgba(15,10,10,0.98))`;e.currentTarget.style.transform="translateY(-2px)";}} onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(242,232,220,0.1)";e.currentTarget.style.background="rgba(255,255,255,0.04)";e.currentTarget.style.transform="translateY(0)";}}>
+                <div style={{fontSize:30,lineHeight:1,filter:`drop-shadow(0 0 6px ${b.color}66)`}}>{b.icon}</div>
+                <div style={{fontFamily:"'Lora',Georgia,serif",fontSize:15,fontWeight:700,color:"rgba(242,232,220,0.9)",letterSpacing:"0.01em",lineHeight:1.2}}>{b.note?<span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:ACCENT,letterSpacing:"0.1em",display:"block",marginBottom:3,textTransform:"uppercase"}}>pro</span>:null}{b.label}</div>
+                <div style={{position:"absolute",bottom:0,left:0,right:0,height:2,background:`linear-gradient(90deg,transparent,${b.color}44,transparent)`}}/>
               </button>
             ))}
           </div>
@@ -865,7 +690,7 @@ export default function Flustered(){
           <div style={{flex:1,overflowY:"auto",padding:"18px",display:"flex",flexDirection:"column",gap:16}}>
             <div style={{animation:"stagger 0.3s 0.05s both"}}>
               <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:`${TEXT}0.25)`,letterSpacing:"0.12em",marginBottom:12,textTransform:"uppercase"}}>// how are you right now?</div>
-              <div style={{display:"flex",gap:6}}>{MOODS.map(m=><button key={m.score} className={`mood-btn${checkinMood===m.score?" sel":""}`} onClick={()=>setCheckinMood(m.score)}><span style={{fontSize:24,filter:checkinMood===m.score?`drop-shadow(0 0 8px ${moodColor(m.score)})`:"none",transition:"filter 0.2s"}}>{m.emoji}</span><span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:checkinMood===m.score?ACCENT:`${TEXT}0.3)`,transition:"color 0.2s",textTransform:"uppercase",letterSpacing:"0.04em"}}>{m.label}</span></button>)}</div>
+              <div style={{display:"flex",gap:6}}>{MOODS.map(m=><button key={m.score} className={`mood-btn${checkinMood===m.score?" sel":""}`} onClick={()=>setCheckinMood(m.score)}><span style={{fontSize:24,filter:checkinMood===m.score?`drop-shadow(0 0 8px ${moodColor(m.score)})` :"none",transition:"filter 0.2s"}}>{m.emoji}</span><span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:checkinMood===m.score?ACCENT:`${TEXT}0.3)`,transition:"color 0.2s",textTransform:"uppercase",letterSpacing:"0.04em"}}>{m.label}</span></button>)}</div>
             </div>
             {checkinMood&&checkinMood<=2&&(
               <div style={{background:"rgba(74,171,181,0.06)",border:"1px solid rgba(74,171,181,0.15)",padding:"12px 14px",animation:"slideUp 0.3s ease",borderRadius:3}}>
@@ -894,7 +719,7 @@ export default function Flustered(){
             <button onClick={()=>nav("home")} style={{background:"none",border:"none",color:ACCENT,cursor:"pointer",fontSize:20,padding:0,lineHeight:1,fontFamily:"'Lora',serif"}}>←</button>
             <div style={{animation:"floatY 4s ease-in-out infinite"}}><FluxCharacter size={34} mood="neutral" warm={night}/></div>
             <div>
-              <div style={{fontFamily:"'Lora',serif",fontSize:13,fontWeight:600,color:`${TEXT}0.9)`}}>FLUX · {currentVoice.name}{userProfile.name?` · ${userProfile.name}`:""}</div>
+              <div style={{fontFamily:"'Lora',serif",fontSize:13,fontWeight:600,color:`${TEXT}0.9)`}}>FLUX · {currentVoice.name}</div>
               <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,letterSpacing:"0.1em",textTransform:"uppercase"}} className="neon-teal">● online{night?" · night mode":""}</div>
             </div>
             <div style={{marginLeft:"auto",display:"flex",gap:6,alignItems:"center"}}>
@@ -910,22 +735,11 @@ export default function Flustered(){
             </div>
           )}
           <div style={{flex:1,overflowY:"auto",padding:"16px",display:"flex",flexDirection:"column",gap:12}}>
-            {messages.length===0&&memoryLoaded&&(
+            {messages.length===0&&(
               <div style={{textAlign:"center",marginTop:20}}>
                 <div style={{animation:"floatY 3.5s ease-in-out infinite",marginBottom:16,display:"flex",justifyContent:"center"}}><FluxCharacter size={72} mood="happy" glow warm={night}/></div>
-                {returningUser?(
-                  <>
-                    <div style={{fontFamily:"'Lora',serif",fontSize:15,fontStyle:"italic",color:`${TEXT}0.5)`,marginBottom:4}}>welcome back.</div>
-                    <div style={{fontFamily:"'Lora',serif",fontStyle:"italic",fontSize:13,color:`${TEXT}0.3)`,marginBottom:6,lineHeight:1.6}}>{night?"still up. i'm here.":"good to see you again. scroll up to pick up where we left off."}</div>
-                    <button onClick={()=>{try{localStorage.removeItem('flux_memory');}catch(e){}convHistory.current=[];setMessages([]);setReturningUser(false);}} style={{background:"none",border:"none",color:`${TEXT}0.15)`,fontFamily:"'JetBrains Mono',monospace",fontSize:8,cursor:"pointer",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:4,transition:"color 0.2s",display:"block"}} onMouseEnter={e=>e.currentTarget.style.color=`${TEXT}0.35)`} onMouseLeave={e=>e.currentTarget.style.color=`${TEXT}0.15)`}>clear this chat →</button>
-                    <button onClick={()=>{try{localStorage.removeItem('flux_memory');localStorage.removeItem('flux_profile');}catch(e){}convHistory.current=[];setMessages([]);setReturningUser(false);setUserProfile({recentMoods:[],patterns:[],triggers:[],notes:[],voiceHistory:[]});}} style={{background:"none",border:"none",color:`${TEXT}0.1)`,fontFamily:"'JetBrains Mono',monospace",fontSize:7,cursor:"pointer",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:20,transition:"color 0.2s",display:"block"}} onMouseEnter={e=>e.currentTarget.style.color=`${TEXT}0.3)`} onMouseLeave={e=>e.currentTarget.style.color=`${TEXT}0.1)`}>reset all memory →</button>
-                  </>
-                ):(
-                  <>
-                    <div style={{fontFamily:"'Lora',serif",fontSize:15,fontStyle:"italic",color:`${TEXT}0.4)`,marginBottom:4}}>FLUX is ready.</div>
-                    <div style={{fontFamily:"'Lora',serif",fontStyle:"italic",fontSize:13,color:`${TEXT}0.25)`,marginBottom:20}}>{night?"it's late — no need to explain much.":"what's going on?"}</div>
-                  </>
-                )}
+                <div style={{fontFamily:"'Lora',serif",fontSize:15,fontStyle:"italic",color:`${TEXT}0.4)`,marginBottom:4}}>FLUX is ready.</div>
+                <div style={{fontFamily:"'Lora',serif",fontStyle:"italic",fontSize:13,color:`${TEXT}0.25)`,marginBottom:20}}>{night?"it's late — no need to explain much.":"what's going on?"}</div>
                 <div style={{display:"flex",flexWrap:"wrap",gap:6,justifyContent:"center"}}>{QUICK_ACTIONS.map(a=><button key={a.label} className="btn" style={{fontSize:10}} onClick={()=>sendMessage(a.prompt)}>{a.label}</button>)}</div>
               </div>
             )}
@@ -955,7 +769,7 @@ export default function Flustered(){
             <button onClick={()=>setShowCrisis(true)} style={{background:"none",border:"none",color:`${TEXT}0.2)`,fontFamily:"'JetBrains Mono',monospace",fontSize:8,cursor:"pointer",padding:"4px 0",transition:"color 0.2s",textTransform:"uppercase",letterSpacing:"0.06em"}} onMouseEnter={e=>e.currentTarget.style.color=`${TEXT}0.45)`} onMouseLeave={e=>e.currentTarget.style.color=`${TEXT}0.2)`}>need more help? →</button>
           </div>
           {messages.length>0&&<div style={{padding:"6px 12px",display:"flex",gap:6,overflowX:"auto",borderTop:`1px solid ${BORDER}0.05)`,flexShrink:0}}>{QUICK_ACTIONS.map(a=><button key={a.label} className="btn" style={{fontSize:9,padding:"5px 10px",whiteSpace:"nowrap"}} onClick={()=>sendMessage(a.prompt)}>{a.label}</button>)}</div>}
-          <div style={{padding:"10px 14px 70px 14px",borderTop:`1px solid ${BORDER}0.06)`,display:"flex",gap:8,alignItems:"center",flexShrink:0,background:BG}}>
+          <div style={{padding:"10px 14px",borderTop:`1px solid ${BORDER}0.06)`,display:"flex",gap:8,alignItems:"center",flexShrink:0,background:BG}}>
             <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&sendMessage()} placeholder={night?"still here, say anything…":"tell flux what's going on…"} style={{flex:1,background:"rgba(255,255,255,0.02)",border:`1px solid ${BORDER}0.08)`,padding:"10px 13px",color:`${TEXT}0.85)`,fontSize:13,fontFamily:"'Lora',serif",transition:"border-color 0.2s",borderRadius:3,lineHeight:1.5}} onFocus={e=>e.target.style.borderColor=ACCENT+"33"} onBlur={e=>e.target.style.borderColor=`${BORDER}0.08)`}/>
             <button onClick={()=>sendMessage()} className="btn" style={{background:input.trim()?`linear-gradient(135deg,${ACCENT},#C07820)`:"rgba(255,255,255,0.03)",color:"#fff",border:"none",width:38,height:38,fontSize:16,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,borderRadius:3,transition:"all 0.2s"}}>→</button>
           </div>
@@ -966,15 +780,14 @@ export default function Flustered(){
         <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"space-between",padding:"28px 20px 24px",textAlign:"center",background:`radial-gradient(ellipse at 50% 30%,rgba(196,104,122,0.1) 0%,${BG} 60%)`,animation:"screenIn 0.3s ease",position:"relative",minHeight:"100vh"}}>
           <Particles count={14} color="rgba(196,104,122,0.6)"/>
           <div style={{width:"100%",position:"relative",zIndex:1}}>
-            <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:"rgba(232,160,170,0.6)",letterSpacing:"0.25em",marginBottom:6,textTransform:"uppercase",textAlign:"center"}}>emergency mode</div>
-            <div style={{fontFamily:"'Lora',serif",fontSize:22,fontWeight:700,color:"rgba(242,210,210,0.9)",letterSpacing:"-0.3px",textAlign:"center"}}>Box Breathing</div>
+            <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:"rgba(232,160,170,0.6)",letterSpacing:"0.25em",marginBottom:6,textTransform:"uppercase"}}>emergency mode</div>
+            <div style={{fontFamily:"'Lora',serif",fontSize:22,fontWeight:700,color:"rgba(242,210,210,0.9)",letterSpacing:"-0.3px"}}>Box Breathing</div>
           </div>
           <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:18,position:"relative",zIndex:1}}>
             <BreathOrb phase={sosPhase} color={["#9B6BAA","#6D3D8A","#4AABB5"][sosPhase]} timer={sosTimer} label={["INHALE","HOLD","EXHALE"][sosPhase]} active={sosActive}/>
             <div style={{fontFamily:"'Lora',serif",fontSize:18,fontWeight:600,color:"rgba(242,232,220,0.9)",minHeight:28,letterSpacing:"0.02em",textShadow:`0 0 20px ${["#9B6BAA","#6D3D8A","#4AABB5"][sosPhase]}88`}}>{sosPhase===0?"fill your lungs slowly...":sosPhase===1?"hold steady...":"let it all go..."}</div>
             <div style={{display:"flex",gap:10}}>{[0,1,2,3].map(i=><div key={i} style={{width:10,height:10,background:i<breathCount?ACCENT:"rgba(255,255,255,0.06)",border:`1px solid ${i<breathCount?ACCENT:"rgba(255,255,255,0.1)"}`,borderRadius:2,transition:"all 0.5s",boxShadow:i<breathCount?`0 0 8px ${ACCENT}88`:""}}/>)}</div>
             {breathCount>=4&&<div style={{background:"rgba(123,158,107,0.08)",border:"1px solid rgba(123,158,107,0.2)",padding:"10px 20px",fontFamily:"'Lora',serif",fontStyle:"italic",fontSize:13,color:"rgba(168,200,152,0.9)",animation:"slideUp 0.4s ease",borderRadius:3}}>4 breaths complete. well done.</div>}
-            <button onClick={()=>{setSosActive(false);clearInterval(sosInterval.current);nav("home");}} style={{marginTop:8,background:"none",border:"1px solid rgba(232,160,170,0.3)",borderRadius:20,color:"rgba(232,160,170,0.8)",fontFamily:"'JetBrains Mono',monospace",fontSize:10,letterSpacing:"0.08em",textTransform:"uppercase",padding:"7px 20px",cursor:"pointer",transition:"all 0.2s"}} onMouseEnter={e=>{e.currentTarget.style.background="rgba(232,160,170,0.1)";e.currentTarget.style.borderColor="rgba(232,160,170,0.6)";}} onMouseLeave={e=>{e.currentTarget.style.background="none";e.currentTarget.style.borderColor="rgba(232,160,170,0.3)";}}>← leave</button>
           </div>
           <button onClick={()=>setShowCrisis(true)} style={{background:"none",border:"none",color:`${TEXT}0.2)`,fontFamily:"'JetBrains Mono',monospace",fontSize:8,cursor:"pointer",marginBottom:10,position:"relative",zIndex:1,textTransform:"uppercase",letterSpacing:"0.06em"}}>need more help? →</button>
           <div style={{display:"flex",gap:8,width:"100%",position:"relative",zIndex:1}}>
@@ -989,7 +802,7 @@ export default function Flustered(){
           <H title="Breathwork Library" sub="ancient & modern techniques" back={()=>nav("home")}/>
           {!isPro&&<div style={{margin:"10px 16px 0",background:"rgba(74,123,170,0.06)",border:"1px solid rgba(74,123,170,0.15)",padding:"9px 14px",display:"flex",alignItems:"center",gap:8,flexShrink:0,borderRadius:3}}>
             <span style={{fontSize:13}}>🔒</span>
-            <div style={{fontFamily:"'Lora',serif",fontStyle:"italic",fontSize:12,color:"rgba(147,197,253,0.7)",flex:1}}>4 free techniques. 5 more with Pro.</div>
+            <div style={{fontFamily:"'Lora',serif",fontStyle:"italic",fontSize:12,color:"rgba(147,197,253,0.7)",flex:1}}>5 techniques locked.</div>
             <button onClick={()=>setShowUpgrade(true)} className="btn" style={{fontSize:9,padding:"4px 10px",borderColor:"rgba(74,123,170,0.3)",color:"rgba(147,197,253,0.7)"}}>unlock</button>
           </div>}
           <div style={{padding:"8px 14px 6px",display:"flex",gap:6,flexShrink:0,overflowX:"auto"}}>
@@ -1026,14 +839,6 @@ export default function Flustered(){
           <div style={{fontFamily:"'Lora',serif",fontStyle:"italic",fontSize:13,color:`${TEXT}0.5)`,textAlign:"center",lineHeight:1.65,padding:"0 4px"}}>{activeExercise.desc}</div>
           <BreathOrb phase={exPhase} color={activeExercise.color} timer={exTimer} label={activeExercise.labels[exPhase]} active={exActive}/>
           {exActive&&<div style={{display:"flex",gap:8,alignItems:"center"}}>{[0,1,2,3].map(i=><div key={i} style={{width:8,height:8,background:i<exRounds?activeExercise.color:"rgba(255,255,255,0.06)",border:`1px solid ${i<exRounds?activeExercise.color:"rgba(255,255,255,0.1)"}`,borderRadius:2,transition:"all 0.4s",boxShadow:i<exRounds?`0 0 8px ${activeExercise.color}`:""}}/>)}<span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:`${TEXT}0.3)`,marginLeft:4,textTransform:"uppercase"}}>{exRounds} rounds</span></div>}
-          {showExCelebration&&(
-            <div style={{background:`linear-gradient(135deg,${activeExercise.color}18,rgba(10,8,8,0.98))`,border:`1px solid ${activeExercise.color}55`,borderRadius:4,padding:"18px",textAlign:"center",animation:"slideUp 0.4s cubic-bezier(0.4,0,0.2,1)",width:"100%",boxSizing:"border-box",boxShadow:`0 0 30px ${activeExercise.color}33`}}>
-              <div style={{fontSize:32,marginBottom:8,animation:"floatY 2s ease-in-out infinite"}}>🌬️</div>
-              <div style={{fontFamily:"'Lora',serif",fontSize:17,fontWeight:700,color:`${TEXT}0.95)`,marginBottom:4}}>4 rounds complete.</div>
-              <div style={{fontFamily:"'Lora',serif",fontStyle:"italic",fontSize:12,color:`${TEXT}0.5)`,marginBottom:10}}>your nervous system just reset.</div>
-              <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:11,color:activeExercise.color}}>+{activeExercise.xp} xp earned</div>
-            </div>
-          )}
           <div style={{...cardStyle(),width:"100%",boxSizing:"border-box"}}>
             <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:`${TEXT}0.2)`,letterSpacing:"0.1em",marginBottom:10,textTransform:"uppercase"}}>sequence</div>
             {activeExercise.steps.map((s,i)=>(
@@ -1100,7 +905,7 @@ export default function Flustered(){
               </div>
               <span style={{fontSize:20}}>{item.icon}</span>
             </div>
-            <div style={{flex:1,overflowY:"auto",padding:"20px 20px 100px 20px",display:"flex",flexDirection:"column"}}>
+            <div style={{flex:1,overflowY:"auto",padding:"20px 20px 90px 20px",display:"flex",flexDirection:"column"}}>
               <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:20,padding:"10px 14px",background:`linear-gradient(135deg,${item.color}08,transparent)`,border:`1px solid ${item.color}18`,borderRadius:3}}>
                 <FluxCharacter size={26} mood="neutral" warm={night}/>
                 <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:item.color,letterSpacing:"0.1em",opacity:0.8,textTransform:"uppercase"}}>flux · intel briefing · {item.readTime}</div>
@@ -1112,12 +917,13 @@ export default function Flustered(){
                 <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:item.color,letterSpacing:"0.12em",marginBottom:4,opacity:0.8,textTransform:"uppercase"}}>briefing complete</div>
                 <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:22,fontWeight:500,color:`${TEXT}0.95)`}}>+{item.xp} xp</div>
               </div>}
-              <button onClick={()=>{if(!done){setReadIntel(p=>[...p,item.id]);gainXP(item.xp);}nav(item.action.screen);}} className="btn" style={{background:`linear-gradient(135deg,${item.color},${item.color}AA)`,color:"#fff",border:"none",padding:"14px",fontSize:11,marginBottom:10,borderRadius:3}}>
+              <button onClick={()=>{if(!done){setReadIntel(p=>[...p,item.id]);gainXP(item.xp);}nav(item.action.screen);}} className="btn" style={{background:`linear-gradient(135deg,${item.color},${item.color}AA)`,color:"#fff",border:"none",padding:"14px",fontSize:11,marginBottom:8,borderRadius:3}}>
                 → {item.action.label}
               </button>
-              <button onClick={goBack} style={{width:"100%",padding:"12px",background:"none",border:`1px solid ${item.color}22`,borderRadius:3,color:`${item.color}99`,fontFamily:"'JetBrains Mono',monospace",fontSize:10,cursor:"pointer",letterSpacing:"0.08em",textTransform:"uppercase",transition:"all 0.2s",marginBottom:4}} onMouseEnter={e=>{e.currentTarget.style.borderColor=`${item.color}55`;e.currentTarget.style.color=item.color;}} onMouseLeave={e=>{e.currentTarget.style.borderColor=`${item.color}22`;e.currentTarget.style.color=`${item.color}99`;}}>← back to intel</button>
             </div>
-
+            <div style={{position:"absolute",bottom:16,left:"50%",transform:"translateX(-50%)",zIndex:10}}>
+              <button onClick={goBack} className="btn" style={{padding:"10px 28px",fontSize:10,borderColor:`${item.color}33`,color:item.color,background:BG}}>← back to intel</button>
+            </div>
           </div>
         );
       })()}
@@ -1144,7 +950,7 @@ export default function Flustered(){
             <div style={{...cardStyle()}}>
               <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12,padding:"8px 10px",background:"rgba(74,171,181,0.05)",border:"1px solid rgba(74,171,181,0.1)",borderRadius:3}}>
                 <FluxCharacter size={22} mood="neutral"/>
-                <div style={{fontFamily:"'Lora',serif",fontStyle:"italic",fontSize:12,color:`${TEXT}0.6)`,lineHeight:1.5}}>{moodHistory.filter(d=>d.date).length>0?`${moodHistory.filter(d=>d.date).length} real check-in${moodHistory.filter(d=>d.date).length>1?"s":""} logged. avg mood ${(moodHistory.filter(d=>d.date).reduce((a,b)=>a+b.score,0)/Math.max(moodHistory.filter(d=>d.date).length,1)).toFixed(1)}/5.`:"No real check-ins yet — this is demo data. Do your first check-in to start tracking."}</div>
+                <div style={{fontFamily:"'Lora',serif",fontStyle:"italic",fontSize:12,color:`${TEXT}0.6)`,lineHeight:1.5}}>You've opened the app during racing thoughts 6 times this month. The sigh technique seemed to help.</div>
               </div>
               <div style={{display:"flex",gap:0}}>
                 <div style={{display:"flex",flexDirection:"column",justifyContent:"space-between",paddingRight:6,height:chartH+12}}>
@@ -1219,7 +1025,7 @@ export default function Flustered(){
 
       {hasOnboarded&&screen==="voices"&&(
         <div style={{flex:1,display:"flex",flexDirection:"column",animation:"screenIn 0.3s ease",minHeight:"100vh"}}>
-          <H title="Choose Your Voice" sub="your companion's personality & sound" back={()=>{nav("home");}}/>
+          <H title="Choose Your Voice" sub="your companion's personality & sound" back={()=>{setSelectedVoice(selectedVoiceTemp);nav("home");}}/>
           <div style={{flex:1,overflowY:"auto",padding:"14px",display:"flex",flexDirection:"column",gap:10}}>
             <div style={{...cardStyle(),marginBottom:4}}>
               <div style={{fontFamily:"'Lora',serif",fontStyle:"italic",fontSize:13,color:`${TEXT}0.4)`,lineHeight:1.65}}>Each voice has a different energy. Preview them — pick the one that feels right.</div>
@@ -1274,34 +1080,9 @@ export default function Flustered(){
               </div>
             );})}
           </div>
-          <div style={{padding:"14px 16px 80px 16px"}}>
+          <div style={{padding:"14px 16px"}}>
             {!sleepActive?<button onClick={()=>beginSleepStep(sleepStep)} className="btn" style={{width:"100%",background:"rgba(99,102,241,0.08)",borderColor:"rgba(99,102,241,0.25)",color:"rgba(199,210,254,0.8)",padding:"14px",fontSize:12}}>begin wind-down</button>:<button onClick={()=>{clearInterval(sleepInterval.current);setSleepActive(false);gainXP(40);}} className="btn" style={{width:"100%",padding:"14px",fontSize:12}}>pause · save progress</button>}
           </div>
-        </div>
-      )}
-
-      {hasOnboarded&&screen!=="sos"&&(
-        <button onClick={startSOS} style={{position:"fixed",bottom:76,right:16,zIndex:500,width:50,height:50,borderRadius:"50%",background:"linear-gradient(135deg,rgba(196,104,122,0.92),rgba(140,50,70,0.96))",border:"1.5px solid rgba(196,104,122,0.55)",boxShadow:"0 4px 20px rgba(196,104,122,0.35)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:19,cursor:"pointer",animation:"sosPulse 3s ease-in-out infinite",transition:"transform 0.15s"}} onMouseEnter={e=>e.currentTarget.style.transform="scale(1.1)"} onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}>🆘</button>
-      )}
-
-      {hasOnboarded&&(
-        <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:490,background:`linear-gradient(180deg,${BG}CC 0%,${BG}FF 40%)`,borderTop:`1px solid rgba(242,232,220,0.12)`,backdropFilter:"blur(20px)",display:"flex",alignItems:"center",justifyContent:"space-around",padding:"10px 0 14px",boxShadow:"0 -8px 32px rgba(0,0,0,0.6)"}}>
-          {[
-            {icon:"🏠",label:"Home",s:"home"},
-            {icon:"✦",label:"FLUX",s:"chat"},
-            {icon:"💨",label:"Breathe",s:"library"},
-            {icon:"📈",label:"Track",s:"tracker"},
-            {icon:"📡",label:"Intel",s:"intel"},
-          ].map(b=>{
-            const active=screen===b.s;
-            return(
-              <button key={b.s} onClick={()=>nav(b.s)} style={{background:"none",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:"4px 12px",transition:"all 0.2s",flex:1}}>
-                <span style={{fontSize:20,filter:active?`drop-shadow(0 0 8px ${ACCENT}CC) drop-shadow(0 0 16px ${ACCENT}66)`:"drop-shadow(0 0 1px rgba(255,255,255,0.2))",transition:"all 0.2s",opacity:active?1:0.55,transform:active?"scale(1.1)":"scale(1)"}}>{b.icon}</span>
-                <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:active?ACCENT:"rgba(242,232,220,0.5)",letterSpacing:"0.07em",textTransform:"uppercase",transition:"color 0.2s",fontWeight:active?500:400}}>{b.label}</span>
-                {active&&<div style={{width:18,height:2,background:ACCENT,borderRadius:2,boxShadow:`0 0 8px ${ACCENT}, 0 0 16px ${ACCENT}88`,marginTop:1}}/>}
-              </button>
-            );
-          })}
         </div>
       )}
     </div>
