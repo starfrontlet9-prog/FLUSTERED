@@ -1294,8 +1294,6 @@ export default function Flustered(){
             {icon:"🏠",label:"Home",s:"home"},
             {icon:"✦",label:"FLUX",s:"chat"},
             {icon:"💨",label:"Breathe",s:"library"},
-            {icon:"📈",label:"Track",s:"tracker"},
-            {icon:"📡",label:"Intel",s:"intel"},
           ].map(b=>{
             const active=screen===b.s;
             return(
