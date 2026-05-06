@@ -780,11 +780,6 @@ export default function Flustered(){
             <div style={{display:"flex",alignItems:"center",gap:14}}>
               <div style={{width:50,height:50,background:`${currentVoice.color}18`,border:`1px solid ${currentVoice.color}44`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0,borderRadius:3,boxShadow:`0 0 16px ${currentVoice.color}44`,animation:"floatY 3.5s ease-in-out infinite"}}>{currentVoice.icon}</div>
               <div style={{flex:1}}>
-                <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:currentVoice.color,letterSpacing:"0.2em",marginBottom:5,textTransform:"uppercase"}}>{night?"🌙 flux is awake":"talk to flux"} · {currentVoice.personality.toLowerCase()}</div>
-                <div style={{fontFamily:"'Lora',serif",fontSize:18,fontWeight:700,color:`${TEXT}0.95)`,marginBottom:3,letterSpacing:"-0.2px"}}>{currentVoice.name} {returningUser?"remembers you":"is ready"}</div>
-                <div style={{fontFamily:"'Lora',serif",fontStyle:"italic",fontSize:12,color:currentVoice.color,opacity:0.7}}>{returningUser?"pick up where you left off":"first time? say anything"}</div>
-              </div>
-            </div>
           </button>
           {!checkedInToday?(
             <button onClick={()=>{setCheckinMood(null);setCheckinFeelings([]);setCheckinNote("");nav("checkin");}} style={{...cardStyle(),border:`1px solid ${ACCENT}1a`,marginBottom:12,cursor:"pointer",textAlign:"left",width:"100%",boxSizing:"border-box",display:"flex",alignItems:"center",gap:12,animation:"stagger 0.35s 0.2s both",zIndex:1}} onMouseEnter={e=>e.currentTarget.style.borderColor=ACCENT+"33"} onMouseLeave={e=>e.currentTarget.style.borderColor=ACCENT+"1a"}>
