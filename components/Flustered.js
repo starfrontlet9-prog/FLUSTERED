@@ -1298,8 +1298,8 @@ export default function Flustered(){
             const active=screen===b.s;
             return(
               <button key={b.s} onClick={()=>nav(b.s)} style={{background:"none",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:"4px 12px",transition:"all 0.2s",flex:1}}>
-                <span style={{fontSize:b.big?28:20,filter:active?`drop-shadow(0 0 8px ${ACCENT}CC) drop-shadow(0 0 16px ${ACCENT}66)`:"drop-shadow(0 0 1px rgba(255,255,255,0.2))",transition:"all 0.2s",opacity:1,transform:active?"scale(1.15)":"scale(1)"}}>{b.icon}</span>
-                <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:active?ACCENT:"rgba(242,232,220,0.95)",letterSpacing:"0.07em",textTransform:"uppercase",transition:"color 0.2s",fontWeight:active?500:400}}>{b.label}</span>
+                <span style={{fontSize:b.big?32:24,filter:active?`drop-shadow(0 0 12px ${ACCENT}) drop-shadow(0 0 24px ${ACCENT}) drop-shadow(0 0 40px ${ACCENT}CC)`:`drop-shadow(0 0 8px rgba(242,232,220,0.9)) drop-shadow(0 0 16px rgba(242,232,220,0.5))`,transition:"all 0.2s",opacity:1,transform:active?"scale(1.2)":"scale(1)"}}>{b.icon}</span>
+                <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:active?ACCENT:"rgba(242,232,220,1)",letterSpacing:"0.07em",textTransform:"uppercase",transition:"color 0.2s",fontWeight:600,textShadow:active?`0 0 8px ${ACCENT}, 0 0 16px ${ACCENT}`:"0 0 6px rgba(242,232,220,0.8)"}}>{b.label}</span>
                 {active&&<div style={{width:18,height:2,background:ACCENT,borderRadius:2,boxShadow:`0 0 8px ${ACCENT}, 0 0 16px ${ACCENT}88`,marginTop:1}}/>}
               </button>
             );
