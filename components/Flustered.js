@@ -748,26 +748,30 @@ export default function Flustered(){
             <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:`${TEXT}0.25)`,letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:2}}>// flux suggests</div>
             {showGroundingCards.map(c=><GroundingCard key={c.id} card={c} onDismiss={()=>{setDismissedCards(p=>[...p,c.id]);setShowGroundingCards(p=>p.filter(x=>x.id!==c.id));}}/>)}
           </div>}
-          <button onClick={startSOS} style={{background:"linear-gradient(135deg,rgba(196,104,122,0.12),rgba(15,10,10,0.98))",border:"1px solid rgba(196,104,122,0.3)",padding:"20px",cursor:"pointer",marginBottom:14,position:"relative",width:"100%",boxSizing:"border-box",textAlign:"left",animation:"stagger 0.35s 0.1s both, sosPulse 4s ease-in-out infinite",zIndex:1,borderRadius:4}}>
-            <div style={{display:"flex",alignItems:"center",gap:14}}>
-              <div style={{width:50,height:50,background:"rgba(196,104,122,0.1)",border:"1px solid rgba(196,104,122,0.25)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0,borderRadius:3}}>🆘</div>
-              <div>
-                <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,letterSpacing:"0.2em",marginBottom:5,textTransform:"uppercase",color:"#E8A0AA"}}>panic now? · instant help</div>
-                <div style={{fontFamily:"'Lora',serif",fontSize:18,fontWeight:700,color:"rgba(242,210,210,0.9)",marginBottom:3,letterSpacing:"-0.2px"}}>SOS · I need help right now</div>
-                <div style={{fontFamily:"'Lora',serif",fontStyle:"italic",fontSize:12,color:"rgba(196,104,122,0.6)"}}>starts breathing immediately</div>
-              </div>
-            </div>
-          </button>
-          <button onClick={()=>{nav("chat");setVoiceMode(false);gainXP(5);}} style={{background:`linear-gradient(135deg,${currentVoice.color}14,rgba(15,10,10,0.98))`,border:`1px solid ${currentVoice.color}44`,padding:"20px",cursor:"pointer",marginBottom:14,position:"relative",width:"100%",boxSizing:"border-box",textAlign:"left",animation:"stagger 0.35s 0.15s both",zIndex:1,borderRadius:4,boxShadow:`0 0 24px ${currentVoice.color}22, 0 0 48px ${currentVoice.color}0A`,transition:"all 0.25s cubic-bezier(0.4,0,0.2,1)"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=currentVoice.color+"77";e.currentTarget.style.boxShadow=`0 0 32px ${currentVoice.color}44, 0 0 64px ${currentVoice.color}18`;e.currentTarget.style.transform="translateY(-1px)";}} onMouseLeave={e=>{e.currentTarget.style.borderColor=currentVoice.color+"44";e.currentTarget.style.boxShadow=`0 0 24px ${currentVoice.color}22, 0 0 48px ${currentVoice.color}0A`;e.currentTarget.style.transform="translateY(0)";}}>
-            <div style={{display:"flex",alignItems:"center",gap:14}}>
-              <div style={{width:50,height:50,background:`${currentVoice.color}18`,border:`1px solid ${currentVoice.color}44`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0,borderRadius:3,boxShadow:`0 0 16px ${currentVoice.color}44`,animation:"floatY 3.5s ease-in-out infinite"}}>{currentVoice.icon}</div>
+          <button onClick={()=>{nav("chat");setVoiceMode(false);gainXP(5);}} style={{background:`linear-gradient(135deg,${currentVoice.color}18,rgba(12,8,8,0.99))`,border:`1.5px solid ${currentVoice.color}55`,padding:"26px 20px",cursor:"pointer",marginBottom:12,position:"relative",width:"100%",boxSizing:"border-box",textAlign:"left",animation:"stagger 0.35s 0.1s both",zIndex:1,borderRadius:6,boxShadow:`0 0 40px ${currentVoice.color}28, 0 0 80px ${currentVoice.color}10`,transition:"all 0.25s cubic-bezier(0.4,0,0.2,1)"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=currentVoice.color+"88";e.currentTarget.style.transform="translateY(-2px)";}} onMouseLeave={e=>{e.currentTarget.style.borderColor=currentVoice.color+"55";e.currentTarget.style.transform="translateY(0)";}}>
+            <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:`linear-gradient(90deg,transparent,${currentVoice.color}99,transparent)`,borderRadius:"6px 6px 0 0"}}/>
+            <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:14}}>
+              <div style={{width:62,height:62,background:`${currentVoice.color}18`,border:`1.5px solid ${currentVoice.color}55`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:30,flexShrink:0,borderRadius:4,boxShadow:`0 0 20px ${currentVoice.color}44`,animation:"floatY 3.5s ease-in-out infinite"}}>{currentVoice.icon}</div>
               <div style={{flex:1}}>
-                <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:currentVoice.color,letterSpacing:"0.2em",marginBottom:5,textTransform:"uppercase"}}>{night?"🌙 flux is awake":"talk to flux"} · {currentVoice.personality.toLowerCase()}</div>
-                <div style={{fontFamily:"'Lora',serif",fontSize:18,fontWeight:700,color:`${TEXT}0.95)`,marginBottom:3,letterSpacing:"-0.2px"}}>{currentVoice.name} {returningUser?"remembers you":"is ready"}</div>
-                <div style={{fontFamily:"'Lora',serif",fontStyle:"italic",fontSize:12,color:currentVoice.color,opacity:0.7}}>{returningUser?"pick up where you left off":"first time? say anything"}</div>
+                <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:currentVoice.color,letterSpacing:"0.2em",marginBottom:6,textTransform:"uppercase"}}>{night?"🌙 flux is awake":"your companion"} · {currentVoice.personality.toLowerCase()}</div>
+                <div style={{fontFamily:"'Lora',serif",fontSize:22,fontWeight:700,color:`${TEXT}0.95)`,marginBottom:4,letterSpacing:"-0.3px",lineHeight:1.2}}>{currentVoice.name} {returningUser?"remembers you":"is listening"}</div>
+                <div style={{fontFamily:"'Lora',serif",fontStyle:"italic",fontSize:13,color:currentVoice.color,opacity:0.85}}>{returningUser?"still here. always.":"say whatever's on your mind."}</div>
               </div>
             </div>
-            <div style={{position:"absolute",bottom:0,left:0,right:0,height:2,background:`linear-gradient(90deg,transparent,${currentVoice.color}66,transparent)`,borderRadius:"0 0 4px 4px"}}/>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {["I'm anxious","Racing thoughts","Just talk to me"].map(q=><div key={q} style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:currentVoice.color,border:`1px solid ${currentVoice.color}33`,padding:"4px 10px",borderRadius:20,opacity:0.7,letterSpacing:"0.04em"}}>{q}</div>)}
+            </div>
+            <div style={{position:"absolute",bottom:0,left:0,right:0,height:2,background:`linear-gradient(90deg,transparent,${currentVoice.color}44,transparent)`,borderRadius:"0 0 6px 6px"}}/>
+          </button>
+          <button onClick={startSOS} style={{background:"linear-gradient(135deg,rgba(196,104,122,0.08),rgba(15,10,10,0.98))",border:"1px solid rgba(196,104,122,0.22)",padding:"13px 16px",cursor:"pointer",marginBottom:12,position:"relative",width:"100%",boxSizing:"border-box",textAlign:"left",animation:"stagger 0.35s 0.15s both, sosPulse 4s ease-in-out infinite",zIndex:1,borderRadius:4}}>
+            <div style={{display:"flex",alignItems:"center",gap:12}}>
+              <div style={{width:34,height:34,background:"rgba(196,104,122,0.1)",border:"1px solid rgba(196,104,122,0.2)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0,borderRadius:3}}>🆘</div>
+              <div style={{flex:1}}>
+                <div style={{fontFamily:"'Lora',serif",fontSize:14,fontWeight:700,color:"rgba(242,210,210,0.9)"}}>SOS — I need help right now</div>
+                <div style={{fontFamily:"'Lora',serif",fontStyle:"italic",fontSize:11,color:"rgba(196,104,122,0.6)",marginTop:2}}>starts breathing immediately</div>
+              </div>
+              <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:"rgba(196,104,122,0.4)"}}>→</div>
+            </div>
           </button>
           {!checkedInToday?(
             <button onClick={()=>{setCheckinMood(null);setCheckinFeelings([]);setCheckinNote("");nav("checkin");}} style={{...cardStyle(),border:`1px solid ${ACCENT}1a`,marginBottom:14,cursor:"pointer",textAlign:"left",width:"100%",boxSizing:"border-box",display:"block",animation:"stagger 0.35s 0.2s both",zIndex:1}} onMouseEnter={e=>e.currentTarget.style.borderColor=ACCENT+"33"} onMouseLeave={e=>e.currentTarget.style.borderColor=ACCENT+"1a"}>
