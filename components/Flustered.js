@@ -1280,7 +1280,7 @@ export default function Flustered(){
         </div>
       )}
 
-      {hasOnboarded&&screen!=="sos"&&(
+      {hasOnboarded&&screen!=="sos"&&screen!=="chat"&&(
         <button onClick={startSOS} style={{position:"fixed",bottom:76,right:16,zIndex:500,width:50,height:50,borderRadius:"50%",background:"linear-gradient(135deg,rgba(196,104,122,0.92),rgba(140,50,70,0.96))",border:"1.5px solid rgba(196,104,122,0.55)",boxShadow:"0 4px 20px rgba(196,104,122,0.35)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:19,cursor:"pointer",animation:"sosPulse 3s ease-in-out infinite",transition:"transform 0.15s"}} onMouseEnter={e=>e.currentTarget.style.transform="scale(1.1)"} onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}>🆘</button>
       )}
 
