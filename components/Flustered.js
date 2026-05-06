@@ -1292,13 +1292,13 @@ export default function Flustered(){
         <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:490,background:`linear-gradient(180deg,${BG}CC 0%,${BG}FF 40%)`,borderTop:`1px solid rgba(242,232,220,0.12)`,backdropFilter:"blur(20px)",display:"flex",alignItems:"center",justifyContent:"space-around",padding:"10px 0 14px",boxShadow:"0 -8px 32px rgba(0,0,0,0.6)"}}>
           {[
             {icon:"🏠",label:"Home",s:"home"},
-            {icon:"✦",label:"FLUX",s:"chat"},
+            {icon:"✦",label:"FLUX",s:"chat",big:true},
             {icon:"💨",label:"Breathe",s:"library"},
           ].map(b=>{
             const active=screen===b.s;
             return(
               <button key={b.s} onClick={()=>nav(b.s)} style={{background:"none",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:"4px 12px",transition:"all 0.2s",flex:1}}>
-                <span style={{fontSize:20,filter:active?`drop-shadow(0 0 8px ${ACCENT}CC) drop-shadow(0 0 16px ${ACCENT}66)`:"drop-shadow(0 0 1px rgba(255,255,255,0.2))",transition:"all 0.2s",opacity:active?1:0.8,transform:active?"scale(1.1)":"scale(1)"}}>{b.icon}</span>
+                <span style={{fontSize:b.big?28:20,filter:active?`drop-shadow(0 0 8px ${ACCENT}CC) drop-shadow(0 0 16px ${ACCENT}66)`:"drop-shadow(0 0 1px rgba(255,255,255,0.2))",transition:"all 0.2s",opacity:active?1:0.8,transform:active?"scale(1.1)":"scale(1)"}}>{b.icon}</span>
                 <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:active?ACCENT:"rgba(242,232,220,0.75)",letterSpacing:"0.07em",textTransform:"uppercase",transition:"color 0.2s",fontWeight:active?500:400}}>{b.label}</span>
                 {active&&<div style={{width:18,height:2,background:ACCENT,borderRadius:2,boxShadow:`0 0 8px ${ACCENT}, 0 0 16px ${ACCENT}88`,marginTop:1}}/>}
               </button>
